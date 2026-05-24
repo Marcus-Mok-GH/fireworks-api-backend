@@ -19,12 +19,18 @@ app.use((req, res, next) => {
 app.post('/api/v1/agent-runs', (req, res) => {
   const { action } = req.body || {}
   if (action === 'START') {
-    return res.json({ runId: randomUUID() })
+    const generatedRunId = randomUUID()
+    return res.status(200).json({ runId: generatedRunId })
   }
   if (action === 'FINISH') {
-    return res.json({ success: true })
+    return res.status(200).json({ success: true })
   }
   return res.status(400).json({ error: 'Invalid action. Must be START or FINISH.' })
+})
+
+// Token count stub
+app.post('/api/v1/token-count', (req, res) => {
+  return res.status(200).json({ count: 0 })
 })
 
 // 0b. Agent run steps
