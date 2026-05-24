@@ -1,5 +1,6 @@
 const express = require('express')
 const fetch = require('node-fetch')
+const { randomUUID } = require('crypto')
 
 const app = express()
 
@@ -12,6 +13,28 @@ app.use((req, res, next) => {
     return res.sendStatus(200)
   }
   next()
+})
+
+// 0a. Agent runs (START / FINISH)
+app.post('/api/v1/agent-runs', (req, res) => {
+  const { action } = req.body || {}
+  if (action === 'START') {
+    return res.json({ runId: randomUUID() })
+  }
+  if (action === 'FINISH') {
+    return res.json({ success: true })
+  }
+  return res.status(400).json({ error: 'Invalid action. Must be START or FINISH.' })
+})
+
+// 0b. Agent run steps
+app.post('/api/v1/agent-runs/:runId/steps', (req, res) => {
+  return res.json({ stepId: randomUUID() })
+})
+
+// 0c. Agent metadata (always 404 to signal not published)
+app.get('/api/v1/agents/:publisherId/:agentId/:version', (req, res) => {
+  return res.status(404).json({ error: 'Agent not found' })
 })
 
 const MODEL_MAP = {
