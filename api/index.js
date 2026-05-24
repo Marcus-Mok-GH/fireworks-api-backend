@@ -159,7 +159,11 @@ app.get('/api/v1/me', (req, res) => {
 
 // 3. Validate agents (always pass to unblock the CLI)
 app.post('/api/agents/validate', (req, res) => {
-  res.json({ success: true, errors: [], validationErrors: [] })
+  return res.status(200).json({ valid: true, agents: [] })
+})
+
+app.post('/api/v1/agents/validate', (req, res) => {
+  return res.status(200).json({ valid: true, agents: [] })
 })
 
 // 4. Chat completions → proxy to Fireworks AI

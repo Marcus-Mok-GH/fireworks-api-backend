@@ -1,8 +1,8 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/(.*)", "dest": "api/index.js" },
-    { "src": "/releases/(.*)", "dest": "api/index.js" }
+    { "src": "/releases/download/(.*)", "dest": "api/index.js" },
+    { "src": "/api/(.*)", "dest": "api/index.js" }
   ],
   "functions": {
     "api/index.js": {
