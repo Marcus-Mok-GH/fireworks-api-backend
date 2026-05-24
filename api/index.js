@@ -43,6 +43,67 @@ app.get('/api/v1/agents/:publisherId/:agentId/:version', (req, res) => {
   return res.status(404).json({ error: 'Agent not found' })
 })
 
+// 0d. GitHub release download proxy
+// Proxies github.com/Marcus-Mok-GH/codebuff-cli/releases/download/:version/:asset
+app.get('/releases/download/:version/:asset', async (req, res) => {
+  const { version, asset } = req.params
+  const upstreamUrl = `https://github.com/Marcus-Mok-GH/codebuff-cli/releases/download/${encodeURIComponent(version)}/${encodeURIComponent(asset)}`
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'fireworks-api-backend-release-proxy',
+        Accept: 'application/octet-stream, */*',
+      },
+    })
+
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '')
+      return res.status(upstream.status).json({
+        error: {
+          message: `GitHub release fetch failed (${upstream.status}): ${text || upstream.statusText}`,
+          type: 'release_proxy_error',
+          upstream: upstreamUrl,
+        },
+      })
+    }
+
+    const passthroughHeaders = ['content-type', 'content-length', 'content-disposition', 'etag', 'last-modified']
+    for (const header of passthroughHeaders) {
+      const value = upstream.headers.get(header)
+      if (value) res.setHeader(header, value)
+    }
+    if (!upstream.headers.get('content-type')) {
+      res.setHeader('Content-Type', 'application/octet-stream')
+    }
+    if (!upstream.headers.get('content-disposition')) {
+      res.setHeader('Content-Disposition', `attachment; filename="${asset}"`)
+    }
+
+    res.status(200)
+    upstream.body.pipe(res)
+    upstream.body.on('error', (err) => {
+      console.error('Release stream error:', err)
+      if (!res.headersSent) {
+        res.status(502).json({ error: { message: err.message, type: 'stream_error' } })
+      } else {
+        res.end()
+      }
+    })
+  } catch (err) {
+    console.error('Release proxy error:', err)
+    res.status(502).json({
+      error: {
+        message: err.message || 'Failed to proxy GitHub release download',
+        type: 'release_proxy_error',
+        upstream: upstreamUrl,
+      },
+    })
+  }
+})
+
 const MODEL_MAP = {
   'anthropic/claude-opus-4.7': 'accounts/fireworks/models/llama-v3p1-70b-instruct',
   'openai/gpt-5.4': 'accounts/fireworks/models/llama-v3p1-70b-instruct',
@@ -59,6 +120,78 @@ function resolveModel(modelId) {
 // 1. Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
+})
+
+// 1b. GitHub releases download proxy
+//     GET /api/releases/download/:version/:asset
+//     Streams the asset from
+//     https://github.com/Marcus-Mok-GH/codebuff-cli/releases/download/{version}/{asset}
+app.get('/api/releases/download/:version/:asset', async (req, res) => {
+  const { version, asset } = req.params
+  const upstreamUrl = `https://github.com/Marcus-Mok-GH/codebuff-cli/releases/download/${encodeURIComponent(version)}/${encodeURIComponent(asset)}`
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'fireworks-api-backend-release-proxy',
+        Accept: 'application/octet-stream, */*',
+      },
+    })
+
+    if (upstream.status === 404) {
+      return res.status(404).json({ error: 'Release asset not found' })
+    }
+
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '')
+      return res.status(upstream.status).json({
+        error: {
+          message: `GitHub responded with ${upstream.status}${text ? `: ${text}` : ''}`,
+          type: 'upstream_error',
+        },
+      })
+    }
+
+    const passthroughHeaders = [
+      'content-type',
+      'content-length',
+      'content-disposition',
+      'last-modified',
+      'etag',
+      'cache-control',
+    ]
+    for (const headerName of passthroughHeaders) {
+      const value = upstream.headers.get(headerName)
+      if (value) res.setHeader(headerName, value)
+    }
+
+    if (!upstream.headers.get('content-disposition')) {
+      res.setHeader('Content-Disposition', `attachment; filename="${asset}"`)
+    }
+
+    res.status(upstream.status)
+
+    upstream.body.on('error', (err) => {
+      console.error('Release download stream error:', err)
+      if (!res.headersSent) {
+        res.status(502).json({ error: { message: err.message, type: 'stream_error' } })
+      } else {
+        res.destroy(err)
+      }
+    })
+
+    upstream.body.pipe(res)
+  } catch (err) {
+    console.error('Release proxy error:', err)
+    res.status(502).json({
+      error: {
+        message: err.message || 'Failed to proxy GitHub release download',
+        type: 'proxy_error',
+      },
+    })
+  }
 })
 
 // 2. Current user
