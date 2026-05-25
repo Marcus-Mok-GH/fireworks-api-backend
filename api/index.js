@@ -4,10 +4,9 @@ const { randomUUID } = require('crypto')
 
 const app = express()
 
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-app.use(express.json({ limit: '50mb' }))
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
@@ -20,12 +19,15 @@ app.use((req, res, next) => {
 
 // 0a. Agent runs (START / FINISH)
 app.post('/api/v1/agent-runs', (req, res) => {
-  const { action } = req.body || {}
-  if (action === 'START') {
+  const body = req.body || {}
+  const action = typeof body.action === 'string' ? body.action.trim() : ''
+  const normalizedAction = action.toUpperCase()
+
+  if (normalizedAction === 'START') {
     const generatedRunId = randomUUID()
     return res.status(200).json({ runId: generatedRunId })
   }
-  if (action === 'FINISH') {
+  if (normalizedAction === 'FINISH') {
     return res.status(200).json({ success: true })
   }
   return res.status(400).json({ error: 'Invalid action. Must be START or FINISH.' })
@@ -231,6 +233,15 @@ app.post('/api/chat/completions', async (req, res) => {
       },
     })
   }
+})
+
+// Usage and subscription stubs
+app.get('/api/usage', (req, res) => {
+  return res.status(200).json({ usage: {} })
+})
+
+app.get('/api/subscription', (req, res) => {
+  return res.status(200).json({ subscription: {} })
 })
 
 module.exports = app
