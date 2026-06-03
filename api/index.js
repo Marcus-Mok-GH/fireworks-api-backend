@@ -61,19 +61,22 @@ function resolveModel(modelId) {
   return DEFAULT_MODEL
 }
 
+const RELEASE_OWNER = 'Marcus-Mok-GH'
+const RELEASE_REPO = 'codebuff-cli'
+
 // 1. Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
 // 1b. GitHub releases download proxy
-//     GET /api/releases/download/:version/:asset
-//     GET /releases/download/:version/:asset  (public alias via vercel.json)
+//     GET /api/releases/download/:owner/:repo/:version/:asset
+//     GET /releases/download/:owner/:repo/:version/:asset  (public alias via vercel.json)
 //     Streams the asset from
-//     https://github.com/Marcus-Mok-GH/codebuff-cli/releases/download/{version}/{asset}
+//     https://github.com/{owner}/{repo}/releases/download/{version}/{asset}
 async function releasesDownloadHandler(req, res) {
-  const { version, asset } = req.params
-  const upstreamUrl = `https://github.com/Marcus-Mok-GH/codebuff-cli/releases/download/${encodeURIComponent(version)}/${encodeURIComponent(asset)}`
+  const { owner, repo, version, asset } = req.params
+  const upstreamUrl = `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(version)}/${encodeURIComponent(asset)}`
 
   try {
     const upstream = await fetch(upstreamUrl, {
@@ -139,8 +142,18 @@ async function releasesDownloadHandler(req, res) {
   }
 }
 
-app.get('/api/releases/download/:version/:asset', releasesDownloadHandler)
-app.get('/releases/download/:version/:asset', releasesDownloadHandler)
+app.get('/api/releases/download/:owner/:repo/:version/:asset', releasesDownloadHandler)
+app.get('/releases/download/:owner/:repo/:version/:asset', releasesDownloadHandler)
+app.get('/api/releases/download/:version/:asset', (req, res) => {
+  req.params.owner = RELEASE_OWNER
+  req.params.repo = RELEASE_REPO
+  return releasesDownloadHandler(req, res)
+})
+app.get('/releases/download/:version/:asset', (req, res) => {
+  req.params.owner = RELEASE_OWNER
+  req.params.repo = RELEASE_REPO
+  return releasesDownloadHandler(req, res)
+})
 
 // 2. Current user
 app.get('/api/v1/me', (req, res) => {
